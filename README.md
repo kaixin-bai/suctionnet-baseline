@@ -139,3 +139,8 @@ if you find our work useful, please cite
   doi={10.1109/LRA.2021.3115406}}
 ```
 
+
+# 使用记录
+## 推理记录
+- 下载预训练模型：[realsense预训练模型](https://drive.google.com/file/d/1q2W2AV663PNT4_TYo5zZtYxjenZJ7GAb/view), [kinect预训练模型](https://drive.google.com/file/d/1mAzFC9dlEDBuoHQp7JGTcTkKGSwFnVth/view)
+- 下载数据集：在[graspnet网址](https://graspnet.net/datasets.html)中下载"Test Images"
