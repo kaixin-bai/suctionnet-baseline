@@ -9,13 +9,15 @@ import torch.nn.functional as F
 from PIL import Image
 import scipy.io as scio
 from policy import estimate_suction
-
+from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--split', default='test_seen', help='dataset split [default: test_seen]')
 parser.add_argument('--camera', default='kinect', help='camera to use [default: kinect]')
-parser.add_argument('--save_root', default='/home/kb/AgileProjects/suctionnet-baseline/inference_results/normals_std', help='where to save')
-parser.add_argument('--dataset_root', default='/home/kb/AgileProjects/suctionnet-baseline/datasets/test_seen/', help='where dataset is')
+parser.add_argument('--save_root', default='/home/kb/AgileProjects/suctionnet-baseline/inference_results/normals_std',
+                    help='where to save')
+parser.add_argument('--dataset_root', default='/home/kb/AgileProjects/suctionnet-baseline/datasets/test_seen/',
+                    help='where dataset is')
 parser.add_argument('--save_visu', default=True, action='store_true', help='whether to save visualization')
 FLAGS = parser.parse_args()
 
@@ -23,6 +25,7 @@ split = FLAGS.split
 camera = FLAGS.camera
 dataset_root = FLAGS.dataset_root
 save_root = FLAGS.save_root
+
 
 class CameraInfo():
     def __init__(self, width, height, fx, fy, cx, cy, scale):
@@ -34,12 +37,14 @@ class CameraInfo():
         self.cy = cy
         self.scale = scale
 
+
 def uniform_kernel(kernel_size):
     kernel = np.ones((kernel_size, kernel_size), dtype=np.float32)
     # center = kernel_size // 2
-    kernel = kernel / kernel_size**2
+    kernel = kernel / kernel_size ** 2
 
     return kernel
+
 
 def grid_sample(pred_score_map, down_rate=20, topk=512):
     num_row = pred_score_map.shape[0] // down_rate
@@ -48,17 +53,17 @@ def grid_sample(pred_score_map, down_rate=20, topk=512):
     idx_list = []
     for i in range(num_row):
         for j in range(num_col):
-            pred_score_grid = pred_score_map[i*down_rate:(i+1)*down_rate, j*down_rate:(j+1)*down_rate]
+            pred_score_grid = pred_score_map[i * down_rate:(i + 1) * down_rate, j * down_rate:(j + 1) * down_rate]
             # print('pred_score_grid:', pred_score_grid.shape)
             max_idx = np.argmax(pred_score_grid)
-            
+
             max_idx = np.array([max_idx // down_rate, max_idx % down_rate]).astype(np.int32)
-            
-            max_idx[0] += i*down_rate
-            max_idx[1] += j*down_rate
+
+            max_idx[0] += i * down_rate
+            max_idx[1] += j * down_rate
             # print('max_idx:', max_idx)
             idx_list.append(max_idx[np.newaxis, ...])
-    
+
     idx = np.concatenate(idx_list, axis=0)
     # print('idx:', idx.shape)
     suction_scores = pred_score_map[idx[:, 0], idx[:, 1]]
@@ -73,6 +78,7 @@ def grid_sample(pred_score_map, down_rate=20, topk=512):
     idx1_topk = idx[:, 1][sort_idx_topk]
 
     return suction_scores_topk, idx0_topk, idx1_topk
+
 
 def drawGaussian(img, pt, score, sigma=1):
     """Draw 2d gaussian on input image.
@@ -108,7 +114,7 @@ def drawGaussian(img, pt, score, sigma=1):
     # print('x:', x.shape)
     x0 = y0 = size // 2
     # The gaussian is not normalized, we want the center value to equal 1
-    
+
     # print('g:', g.shape)
     # Usable gaussian range
     g_x = max(0, -ul[0]), min(br[0], img.shape[1]) - ul[0]
@@ -125,16 +131,22 @@ def drawGaussian(img, pt, score, sigma=1):
     # img[img_y[0]:img_y[1], img_x[0]:img_x[1]] = g
     img += tmp_img
 
+
 def single2three_channel(arr_2d):
     return np.broadcast_to(arr_2d[:, :, np.newaxis], (arr_2d.shape[0], arr_2d.shape[1], 3))
+
 
 def inference(scene_idx):
     for anno_idx in range(1):
 
-        rgb_file = os.path.join(dataset_root, 'scenes/scene_{:04d}/{}/rgb/{:04d}.png'.format(scene_idx, camera, anno_idx))
-        depth_file = os.path.join(dataset_root, 'scenes/scene_{:04d}/{}/depth/{:04d}.png'.format(scene_idx, camera, anno_idx))
-        segmask_file = os.path.join(dataset_root, 'scenes/scene_{:04d}/{}/label/{:04d}.png'.format(scene_idx, camera, anno_idx))
-        meta_file = os.path.join(dataset_root, 'scenes/scene_{:04d}/{}/meta/{:04d}.mat'.format(scene_idx, camera, anno_idx))
+        rgb_file = os.path.join(dataset_root,
+                                'scenes/scene_{:04d}/{}/rgb/{:04d}.png'.format(scene_idx, camera, anno_idx))
+        depth_file = os.path.join(dataset_root,
+                                  'scenes/scene_{:04d}/{}/depth/{:04d}.png'.format(scene_idx, camera, anno_idx))
+        segmask_file = os.path.join(dataset_root,
+                                    'scenes/scene_{:04d}/{}/label/{:04d}.png'.format(scene_idx, camera, anno_idx))
+        meta_file = os.path.join(dataset_root,
+                                 'scenes/scene_{:04d}/{}/meta/{:04d}.mat'.format(scene_idx, camera, anno_idx))
 
         depth = cv2.imread(depth_file, cv2.IMREAD_UNCHANGED).astype(np.float32) / 1000.0
         seg_mask = cv2.imread(segmask_file, cv2.IMREAD_UNCHANGED).astype(np.bool)
@@ -143,8 +155,8 @@ def inference(scene_idx):
         # seg_mask = seg_mask.astype(np.bool)
         meta = scio.loadmat(meta_file)
         intrinsics = meta['intrinsic_matrix']
-        fx, fy = intrinsics[0,0], intrinsics[1,1]
-        cx, cy = intrinsics[0,2], intrinsics[1,2]
+        fx, fy = intrinsics[0, 0], intrinsics[1, 1]
+        cx, cy = intrinsics[0, 2], intrinsics[1, 2]
         width = 1280
         height = 720
         s = 1000.0
@@ -159,25 +171,25 @@ def inference(scene_idx):
         # """
         # 用我们自己的数据测试的结果！
         # """
-        depth = np.load("/home/kb/AgileProjects/suctionnet-baseline/datasets/data/deptn_img.npy")  # 500*656
+        depth = np.load("/home/kb/AgileProjects/suctionnet-baseline/datasets/data/depth_img.npy")  # 500*656
         seg_mask = np.load("/home/kb/AgileProjects/suctionnet-baseline/datasets/data/mask_img.npy")
-        camera_info = CameraInfo(656, 500,1171.92, 1171.92, 265.25, 185.25, 1.0)
+        camera_info = CameraInfo(656, 500, 1171.92, 1171.92, 265.25, 185.25, 1.0)
         heatmap, normals, point_cloud = estimate_suction(depth, seg_mask, camera_info)
-        # from matplotlib import pyplot as plt
-        # plt.figure()
-        # plt.subplot(221)
-        # plt.imshow(depth, cmap='jet')
-        # plt.axis("off")
-        # plt.subplot(222)
-        # plt.imshow(seg_mask, cmap='gray')
-        # plt.axis("off")
-        # plt.subplot(223)
-        # plt.imshow(heatmap * seg_mask, cmap='jet')
-        # plt.axis("off")
-        # plt.subplot(224)
-        # plt.imshow(((normals+1.0)*0.5)*seg_mask.reshape([500,656,1]))
-        # plt.axis("off")
-        # plt.show()
+
+        plt.figure()
+        plt.subplot(221)
+        plt.imshow(depth, cmap='jet')
+        plt.axis("off")
+        plt.subplot(222)
+        plt.imshow(seg_mask, cmap='gray')
+        plt.axis("off")
+        plt.subplot(223)
+        plt.imshow(heatmap * seg_mask, cmap='jet')
+        plt.axis("off")
+        plt.subplot(224)
+        plt.imshow(((normals+1.0)*0.5)*seg_mask.reshape([500,656,1]))
+        plt.axis("off")
+        plt.show()
         # exit()
         # """
         # 用我们自己的数据测试的结果！
@@ -185,36 +197,37 @@ def inference(scene_idx):
 
         # toc = time.time()
         # print('policy time:', toc - tic)
-        
+
         k_size = 15
         kernel = uniform_kernel(k_size)
         kernel = torch.from_numpy(kernel).unsqueeze(0).unsqueeze(0)
         # print('kernel:', kernel.shape)
-        heatmap = np.pad(heatmap, k_size//2)
+        heatmap = np.pad(heatmap, k_size // 2)
         heatmap = torch.from_numpy(heatmap).unsqueeze(0).unsqueeze(0)
         # print('heatmap:', heatmap.shape)
         heatmap = F.conv2d(heatmap, kernel).squeeze().numpy()
-
+        heatmap *= seg_mask
         suction_scores, idx0, idx1 = grid_sample(heatmap, down_rate=10, topk=1024)
         # suction_scores = pred_score_map[idx0, idx1]
         suction_directions = normals[idx0, idx1, :]
         suction_translations = point_cloud[idx0, idx1, :]
 
         # print('suction_scores:', suction_scores.shape)
-        suction_arr = np.concatenate([suction_scores[..., np.newaxis], suction_directions, suction_translations], axis=-1)
+        suction_arr = np.concatenate([suction_scores[..., np.newaxis], suction_directions, suction_translations],
+                                     axis=-1)
 
-        suction_dir = os.path.join(save_root, split, 'scene_%04d'%scene_idx, camera, 'suction')
+        suction_dir = os.path.join(save_root, split, 'scene_%04d' % scene_idx, camera, 'suction')
         os.makedirs(suction_dir, exist_ok=True)
-        print('Saving:', suction_dir+'/%04d'%anno_idx+'.npz')
+        print('Saving:', suction_dir + '/%04d' % anno_idx + '.npz')
         # start_time = time.time()
-        np.savez(suction_dir+'/%04d'%anno_idx+'.npz', suction_arr)
+        np.savez(suction_dir + '/%04d' % anno_idx + '.npz', suction_arr)
 
         # if anno_idx > 0 and FLAGS.save_visu:
         if True:
             # pridictions
             score_image = heatmap
             score_image *= 255
-                    
+
             score_image = score_image.clip(0, 255)
             score_image = score_image.astype(np.uint8)
             score_image = cv2.applyColorMap(score_image, cv2.COLORMAP_RAINBOW)
@@ -223,19 +236,19 @@ def inference(scene_idx):
             rgb_image = 0.5 * rgb_image + 0.5 * score_image * single2three_channel(seg_mask)
             rgb_image = rgb_image.astype(np.uint8)
             im = Image.fromarray(rgb_image)
-            
-            visu_dir = os.path.join(save_root, split, 'scene_%04d'%scene_idx, camera, 'visu')
+
+            visu_dir = os.path.join(save_root, split, 'scene_%04d' % scene_idx, camera, 'visu')
             os.makedirs(visu_dir, exist_ok=True)
-            print('Saving:', visu_dir+'/%04d'%anno_idx+'.png')
+            print('Saving:', visu_dir + '/%04d' % anno_idx + '.png')
             # start_time = time.time()
-            im.save(visu_dir+'/%04d'%anno_idx+'.png')
+            im.save(visu_dir + '/%04d' % anno_idx + '.png')
 
             # sampled suctions
             score_image = np.zeros_like(heatmap)
             for i in range(suction_scores.shape[0]):
                 drawGaussian(score_image, [idx1[i], idx0[i]], suction_scores[i], 3)
-            
-            score_image *= 255                        
+
+            score_image *= 255
             score_image = score_image.clip(0, 255)
             score_image = score_image.astype(np.uint8)
             score_image = cv2.applyColorMap(score_image, cv2.COLORMAP_RAINBOW)
@@ -244,15 +257,31 @@ def inference(scene_idx):
             rgb_image = 0.5 * rgb_image + 0.5 * score_image * single2three_channel(seg_mask)
             rgb_image = rgb_image.astype(np.uint8)
             im = Image.fromarray(rgb_image)
-            
-            visu_dir = os.path.join(save_root, split, 'scene_%04d'%scene_idx, camera, 'visu')
+
+            visu_dir = os.path.join(save_root, split, 'scene_%04d' % scene_idx, camera, 'visu')
             os.makedirs(visu_dir, exist_ok=True)
-            print('Saving:', visu_dir+'/%04d_sampled'%anno_idx+'.png')
+            print('Saving:', visu_dir + '/%04d_sampled' % anno_idx + '.png')
             # start_time = time.time()
-            im.save(visu_dir+'/%04d_sampled'%anno_idx+'.png')
+            im.save(visu_dir + '/%04d_sampled' % anno_idx + '.png')
+
+            plt.figure()
+            plt.subplot(131)
+            plt.axis("off")
+            plt.imshow(rgb_image)
+            plt.subplot(132)
+            plt.axis("off")
+            plt.imshow(score_image)
+            plt.subplot(133)
+            plt.axis("off")
+            plt.imshow(heatmap / heatmap.max(), cmap='jet')
+            plt.show()
+
+
+
+
 
 if __name__ == "__main__":
-    
+
     scene_list = []
     if split == 'test':
         for i in range(100, 190):
@@ -268,7 +297,7 @@ if __name__ == "__main__":
             scene_list.append(i)
     else:
         print('invalid split')
-    
+
     # for scene_idx in scene_list:
     #     inference(scene_idx)
     inference(100)

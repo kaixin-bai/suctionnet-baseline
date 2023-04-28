@@ -144,3 +144,46 @@ if you find our work useful, please cite
 ## 推理记录
 - 下载预训练模型：[realsense预训练模型](https://drive.google.com/file/d/1q2W2AV663PNT4_TYo5zZtYxjenZJ7GAb/view), [kinect预训练模型](https://drive.google.com/file/d/1mAzFC9dlEDBuoHQp7JGTcTkKGSwFnVth/view)
 - 下载数据集：在[graspnet网址](https://graspnet.net/datasets.html)中下载"Test Images"
+
+## 报错以及解决方法
+报错：
+```bash
+    from torchvision.models.utils import load_state_dict_from_url
+ModuleNotFoundError: No module named 'torchvision.models.utils'
+```
+解决：`torchvision.models.utils import load_state_dict_from_url`这个用法在比较低和最新的torchvision版本中都不适用，可以更改为如下：
+```python
+try:
+    from torch.hub import load_state_dict_from_url
+except ImportError:
+    from torch.utils.model_zoo import load_url as load_state_dict_from_url
+```
+另一种解决方法是：将torchvision的版本改为
+
+---
+
+报错：
+```bash
+Traceback (most recent call last):
+  File "/home/kb/suctionnet-baseline/neural_network/inference_phoxi.py", line 88, in <module>
+    net.load_state_dict(checkpoint['model_state_dict'])
+  File "/home/kb/anaconda3/envs/ceshi/lib/python3.8/site-packages/torch/nn/modules/module.py", line 2041, in load_state_dict
+    raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
+RuntimeError: Error(s) in loading state_dict for DataParallel:
+	~~size mismatch for module.backbone.conv1.weight: copying a param with shape torch.Size([64, 1, 7, 7]) from checkpoint, the shape in current model is torch.Size([64, 4, 7, 7]).~~
+```
+
+记录：尝试进行pytorch和torchvision降级，看是否可以解决问题。  \
+我当前的版本如下：  
+```buildoutcfg
+torch                  2.0.0
+torchaudio             2.0.0
+torchvision            0.15.0
+```
+项目readme中使用的版本如下，注意我用的是python3.7：
+```buildoutcfg
+The code has been tested with CUDA 10.1 and pytorch 1.4.0 on ubuntu 16.04
+```
+```buildoutcfg
+conda install pytorch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 cudatoolkit=11.0 -c pytorch
+```
