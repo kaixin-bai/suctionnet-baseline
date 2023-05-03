@@ -384,7 +384,7 @@ def inference_one_view(rgb_file, depth_file, meta_file, scene_idx, anno_idx):
         # plt.subplot(122)
         # plt.imshow(score_img)
         # plt.show()
-        # exit()
+        exit()
         # # ==================================================================================================================
 
 
